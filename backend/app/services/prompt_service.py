@@ -112,7 +112,8 @@ Incorporate this guidance into the episode while maintaining narrative flow."""
 
         prompt += """
 
-Begin the episode now. Write only the story content, no meta-commentary."""
+FORMAT: Start DIRECTLY with narrative prose. No preamble, no titles, no "Episode X" headers.
+The first word must be story content. Begin:"""
 
         return prompt
 

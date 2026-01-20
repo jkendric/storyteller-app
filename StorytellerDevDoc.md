@@ -12,7 +12,7 @@ The v1 system prioritizes:
 
 Stories are generated episode by episode, streamed to the user in real time, optionally narrated via text-to-speech, and can be saved, resumed, or forked to explore alternate narrative paths.
 
-
+/ral
 
 ---
 

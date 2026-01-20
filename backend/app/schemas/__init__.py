@@ -36,7 +36,23 @@ from app.schemas.memory import (
 from app.schemas.tts import (
     TTSRequest,
     TTSResponse,
+    TTSStreamRequest,
+    TTSHealthResponse,
     VoiceInfo,
+)
+from app.schemas.tts_provider import (
+    TTSProviderType,
+    TTSProviderBase,
+    TTSProviderCreate,
+    TTSProviderUpdate,
+    TTSProviderResponse,
+    TTSProviderList,
+    TTSProviderTestResult,
+    TTSProviderVoicesResponse,
+    VoiceCloneBase,
+    VoiceCloneCreate,
+    VoiceCloneResponse,
+    VoiceCloneList,
 )
 
 __all__ = [
@@ -73,5 +89,21 @@ __all__ = [
     # TTS
     "TTSRequest",
     "TTSResponse",
+    "TTSStreamRequest",
+    "TTSHealthResponse",
     "VoiceInfo",
+    # TTS Provider
+    "TTSProviderType",
+    "TTSProviderBase",
+    "TTSProviderCreate",
+    "TTSProviderUpdate",
+    "TTSProviderResponse",
+    "TTSProviderList",
+    "TTSProviderTestResult",
+    "TTSProviderVoicesResponse",
+    # Voice Clone
+    "VoiceCloneBase",
+    "VoiceCloneCreate",
+    "VoiceCloneResponse",
+    "VoiceCloneList",
 ]

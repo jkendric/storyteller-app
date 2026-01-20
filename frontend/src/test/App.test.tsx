@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from '../App'
 
 // Mock fetch
-global.fetch = vi.fn()
+globalThis.fetch = vi.fn()
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -25,7 +25,7 @@ const createWrapper = () => {
 
 describe('App', () => {
   it('renders without crashing', () => {
-    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ stories: [], total: 0 }),
     })
@@ -35,7 +35,7 @@ describe('App', () => {
   })
 
   it('shows navigation links', () => {
-    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ stories: [], total: 0 }),
     })

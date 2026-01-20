@@ -112,6 +112,78 @@ export interface ProviderModelsResponse {
   models: Array<{ id?: string; name?: string }>
 }
 
+// TTS Provider Types
+export type TTSProviderType = 'kokoro' | 'piper' | 'coqui_xtts' | 'openai_compatible' | 'chatterbox'
+
+export interface TTSProvider {
+  id: number
+  name: string
+  provider_type: TTSProviderType
+  base_url: string
+  default_voice?: string
+  supports_streaming: boolean
+  supports_voice_cloning: boolean
+  provider_settings?: Record<string, unknown>
+  is_default: boolean
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TTSProviderCreate {
+  name: string
+  provider_type: TTSProviderType
+  base_url: string
+  default_voice?: string
+  supports_streaming?: boolean
+  supports_voice_cloning?: boolean
+  provider_settings?: Record<string, unknown>
+  is_default?: boolean
+  enabled?: boolean
+}
+
+export interface TTSProviderUpdate {
+  name?: string
+  provider_type?: TTSProviderType
+  base_url?: string
+  default_voice?: string
+  supports_streaming?: boolean
+  supports_voice_cloning?: boolean
+  provider_settings?: Record<string, unknown>
+  is_default?: boolean
+  enabled?: boolean
+}
+
+export interface TTSProviderTestResult {
+  status: 'ok' | 'error'
+  message?: string
+  voices?: string[]
+  supports_streaming?: boolean
+  supports_voice_cloning?: boolean
+}
+
+export interface TTSProviderVoicesResponse {
+  voices: Array<{ id?: string; name?: string; language?: string; gender?: string }>
+}
+
+export interface VoiceClone {
+  id: number
+  name: string
+  description?: string
+  provider_id: number
+  reference_audio_path: string
+  audio_duration?: number
+  language: string
+  created_at: string
+  updated_at: string
+}
+
+export interface VoiceCloneCreate {
+  name: string
+  description?: string
+  language?: string
+}
+
 class ApiClient {
   private async request<T>(
     endpoint: string,
@@ -246,15 +318,55 @@ class ApiClient {
   }
 
   // TTS
-  async generateTTS(text: string, voice?: string): Promise<{ audio_url: string }> {
+  async generateTTS(
+    text: string,
+    voice?: string,
+    providerId?: number,
+    voiceCloneId?: number,
+    signal?: AbortSignal
+  ): Promise<{ audio_url: string; provider_id?: number }> {
     return this.request('/tts/generate', {
       method: 'POST',
-      body: JSON.stringify({ text, voice }),
+      body: JSON.stringify({
+        text,
+        voice,
+        provider_id: providerId,
+        voice_clone_id: voiceCloneId,
+      }),
+      signal,
     })
   }
 
-  async getVoices(): Promise<Voice[]> {
-    return this.request('/tts/voices')
+  async streamTTS(
+    text: string,
+    voice?: string,
+    providerId?: number,
+    voiceCloneId?: number
+  ): Promise<Response> {
+    const response = await fetch(`${API_BASE}/tts/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        voice,
+        provider_id: providerId,
+        voice_clone_id: voiceCloneId,
+      }),
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Stream request failed: ${response.status}`)
+    }
+    return response
+  }
+
+  async getVoices(providerId?: number): Promise<Voice[]> {
+    const url = providerId ? `/tts/voices?provider_id=${providerId}` : '/tts/voices'
+    return this.request(url)
+  }
+
+  async getTTSHealth(): Promise<{ providers: Array<Record<string, unknown>>; default_provider_id?: number }> {
+    return this.request('/tts/health')
   }
 
   // LLM Providers
@@ -298,8 +410,93 @@ class ApiClient {
     })
   }
 
+  // TTS Providers
+  async getTTSProviders(): Promise<{ providers: TTSProvider[]; total: number }> {
+    return this.request('/settings/tts-providers')
+  }
+
+  async getTTSProvider(id: number): Promise<TTSProvider> {
+    return this.request(`/settings/tts-providers/${id}`)
+  }
+
+  async createTTSProvider(data: TTSProviderCreate): Promise<TTSProvider> {
+    return this.request('/settings/tts-providers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateTTSProvider(id: number, data: TTSProviderUpdate): Promise<TTSProvider> {
+    return this.request(`/settings/tts-providers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteTTSProvider(id: number): Promise<void> {
+    await this.request(`/settings/tts-providers/${id}`, { method: 'DELETE' })
+  }
+
+  async testTTSProvider(id: number): Promise<TTSProviderTestResult> {
+    return this.request(`/settings/tts-providers/${id}/test`, { method: 'POST' })
+  }
+
+  async getTTSProviderVoices(id: number): Promise<TTSProviderVoicesResponse> {
+    return this.request(`/settings/tts-providers/${id}/voices`)
+  }
+
+  async testTTSProviderUrl(baseUrl: string, providerType: TTSProviderType): Promise<TTSProviderTestResult> {
+    return this.request(
+      `/settings/tts-providers/test-url?base_url=${encodeURIComponent(baseUrl)}&provider_type=${providerType}`,
+      { method: 'POST' }
+    )
+  }
+
+  // Voice Clones
+  async getVoiceClones(providerId: number): Promise<{ voice_clones: VoiceClone[]; total: number }> {
+    return this.request(`/settings/tts-providers/${providerId}/voice-clones`)
+  }
+
+  async createVoiceClone(
+    providerId: number,
+    data: VoiceCloneCreate,
+    audioFile: File
+  ): Promise<VoiceClone> {
+    const formData = new FormData()
+    formData.append('name', data.name)
+    if (data.description) formData.append('description', data.description)
+    if (data.language) formData.append('language', data.language)
+    formData.append('audio_file', audioFile)
+
+    const response = await fetch(`${API_BASE}/settings/tts-providers/${providerId}/voice-clones`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Request failed: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async getVoiceClone(providerId: number, cloneId: number): Promise<VoiceClone> {
+    return this.request(`/settings/tts-providers/${providerId}/voice-clones/${cloneId}`)
+  }
+
+  async deleteVoiceClone(providerId: number, cloneId: number): Promise<void> {
+    await this.request(`/settings/tts-providers/${providerId}/voice-clones/${cloneId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  getVoiceCloneAudioUrl(providerId: number, cloneId: number): string {
+    return `${API_BASE}/settings/tts-providers/${providerId}/voice-clones/${cloneId}/audio`
+  }
+
   // Health
-  async getHealth(): Promise<{ status: string; services: Record<string, string> }> {
+  async getHealth(): Promise<{ status: string; services: Record<string, unknown> }> {
     return this.request('/health')
   }
 }

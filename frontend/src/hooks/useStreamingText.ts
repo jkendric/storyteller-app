@@ -64,6 +64,7 @@ export function useStreamingText() {
 
         const decoder = new TextDecoder()
         let buffer = ''
+        let currentEventType = 'token' // Default to 'token' for safety
 
         while (true) {
           const { done, value } = await reader.read()
@@ -75,22 +76,17 @@ export function useStreamingText() {
 
           for (const line of lines) {
             if (line.startsWith('event:')) {
-              continue
-            }
-            if (line.startsWith('data:')) {
-              const data = line.slice(5).trim()
-              if (!data) continue
+              // Update current event type when we see an event line
+              currentEventType = line.slice(6).trim()
+            } else if (line.startsWith('data:')) {
+              // Remove 'data:' prefix and the optional single space after it (SSE format)
+              // Don't use trim() as it would strip spaces that are actual token content
+              const rawData = line.slice(5)
+              const data = rawData.startsWith(' ') ? rawData.slice(1) : rawData
 
-              // Parse the event from the previous line
-              const eventMatch = lines.find((l) =>
-                l.startsWith('event:')
-              )
-              const eventType = eventMatch
-                ? eventMatch.slice(6).trim()
-                : 'message'
-
-              handleEvent(eventType, data, onComplete, onError)
+              handleEvent(currentEventType, data, onComplete, onError)
             }
+            // Empty lines are event separators in SSE - no action needed
           }
         }
       } catch (error) {
@@ -136,6 +132,13 @@ export function useStreamingText() {
           break
         case 'error':
           onError?.(data)
+          break
+        case 'start':
+          // Episode started - no action needed for display
+          break
+        default:
+          // Treat unknown events as tokens to avoid dropping content
+          appendStreamingContent(data)
           break
       }
     },

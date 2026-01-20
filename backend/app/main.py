@@ -12,10 +12,12 @@ from app.routers import (
     episodes_router,
     tts_router,
     settings_router,
+    tts_settings_router,
 )
 from app.models.llm_provider import LLMProvider, ProviderType
+from app.models.tts_provider import TTSProvider, TTSProviderType
 from app.services.llm_service import llm_service, ProviderManager
-from app.services.tts_service import tts_service
+from app.services.tts.unified import unified_tts_service
 
 settings = get_settings()
 
@@ -46,12 +48,14 @@ app.include_router(stories_router)
 app.include_router(episodes_router)
 app.include_router(tts_router)
 app.include_router(settings_router)
+app.include_router(tts_settings_router)
 
 
 def init_default_providers():
-    """Create default Ollama provider if no providers exist."""
+    """Create default Ollama and Kokoro providers if no providers exist."""
     db = SessionLocal()
     try:
+        # Initialize default LLM provider
         if db.query(LLMProvider).count() == 0:
             default_provider = LLMProvider(
                 name="Ollama (Default)",
@@ -63,6 +67,21 @@ def init_default_providers():
                 enabled=True,
             )
             db.add(default_provider)
+            db.commit()
+
+        # Initialize default TTS provider
+        if db.query(TTSProvider).count() == 0:
+            default_tts_provider = TTSProvider(
+                name="Kokoro TTS (Default)",
+                provider_type=TTSProviderType.KOKORO,
+                base_url=settings.kokoro_tts_url,
+                default_voice=settings.tts_default_voice,
+                supports_streaming=True,
+                supports_voice_cloning=False,
+                is_default=True,
+                enabled=True,
+            )
+            db.add(default_tts_provider)
             db.commit()
     finally:
         db.close()
@@ -80,34 +99,35 @@ async def health_check():
     """Health check endpoint."""
     db = SessionLocal()
     try:
-        # Check all enabled providers
-        providers = db.query(LLMProvider).filter(LLMProvider.enabled == True).all()
-        provider_statuses = {}
+        # Check all enabled LLM providers
+        llm_providers = db.query(LLMProvider).filter(LLMProvider.enabled == True).all()
+        llm_provider_statuses = {}
 
-        for provider in providers:
+        for provider in llm_providers:
             status = await llm_service.health_check(provider)
             role = []
             if provider.is_default:
                 role.append("default")
             if provider.is_alternate:
                 role.append("alternate")
-            provider_statuses[provider.name] = {
+            llm_provider_statuses[provider.name] = {
                 "status": "connected" if status else "disconnected",
                 "role": role if role else None,
             }
 
         # Legacy fallback check
-        if not providers:
+        if not llm_providers:
             legacy_status = await llm_service.health_check()
-            provider_statuses["ollama (legacy)"] = "connected" if legacy_status else "disconnected"
+            llm_provider_statuses["ollama (legacy)"] = "connected" if legacy_status else "disconnected"
 
-        tts_status = await tts_service.health_check()
+        # Check all TTS providers
+        tts_provider_statuses = await unified_tts_service.health_check_all(db)
 
         return {
             "status": "healthy",
             "services": {
-                "providers": provider_statuses,
-                "tts": "connected" if tts_status else "disconnected",
+                "llm_providers": llm_provider_statuses,
+                "tts_providers": tts_provider_statuses,
             },
         }
     finally:
@@ -126,4 +146,4 @@ async def list_models():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=settings.server_port)

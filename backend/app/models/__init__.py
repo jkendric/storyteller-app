@@ -4,6 +4,7 @@ from app.models.story import Story, StoryCharacter
 from app.models.episode import Episode
 from app.models.memory import MemoryState
 from app.models.llm_provider import LLMProvider, ProviderType
+from app.models.tts_provider import TTSProvider, TTSProviderType, TTSVoiceClone
 
 __all__ = [
     "Character",
@@ -14,4 +15,7 @@ __all__ = [
     "MemoryState",
     "LLMProvider",
     "ProviderType",
+    "TTSProvider",
+    "TTSProviderType",
+    "TTSVoiceClone",
 ]

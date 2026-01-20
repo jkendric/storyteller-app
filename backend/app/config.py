@@ -5,6 +5,9 @@ from functools import lru_cache
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
+    # Server
+    server_port: int = 8001
+
     # Database
     database_url: str = "sqlite:///./data/storyteller.db"
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Story, StoryCharacter, Episode
+from app.models import Story, StoryCharacter, Episode, MemoryState
 from app.models.story import StoryStatus
 from app.schemas import (
     StoryCreate,
@@ -136,8 +136,11 @@ def delete_story(
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    # Delete episodes first
+    # Delete memory states first (they reference both story and episodes)
+    db.query(MemoryState).filter(MemoryState.story_id == story_id).delete()
+    # Delete episodes
     db.query(Episode).filter(Episode.story_id == story_id).delete()
+    # Delete story characters
     db.query(StoryCharacter).filter(StoryCharacter.story_id == story_id).delete()
 
     db.delete(story)

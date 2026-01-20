@@ -16,7 +16,6 @@ export default function StoryReaderPage() {
   const id = parseInt(storyId || '0', 10)
 
   const {
-    currentStory,
     episodes,
     isGenerating,
     streamingContent,

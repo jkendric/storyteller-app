@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Volume2, VolumeX } from 'lucide-react'
 import type { Episode } from '../../api/client'
-import { useAudioPlayer } from '../../hooks/useAudioPlayer'
+import { useAudioPlayerContext } from '../../contexts/AudioPlayerContext'
 import { useAudioStore } from '../../stores/audioStore'
 
 interface EpisodeReaderProps {
@@ -16,13 +16,84 @@ export default function EpisodeReader({
   isGenerating,
 }: EpisodeReaderProps) {
   const [currentIndex, setCurrentIndex] = useState(episodes.length - 1)
-  const { play, pause, stop, isPlaying } = useAudioPlayer()
-  const { clearQueue } = useAudioStore()
+  const { play, pause, stop, isPlaying } = useAudioPlayerContext()
+  const { queueContent, audioQueue } = useAudioStore()
+  const prevEpisodesLengthRef = useRef(episodes.length)
+  const wasGeneratingRef = useRef(isGenerating)
+  const shouldAutoPlayRef = useRef(false)
+  const prevIndexRef = useRef(currentIndex)
+  const autoPlayOnFirstSentenceRef = useRef(false)
+
+  // Auto-navigate to the new episode when it's added to the array
+  useEffect(() => {
+    if (episodes.length > prevEpisodesLengthRef.current) {
+      // A new episode was added - navigate to it
+      setCurrentIndex(episodes.length - 1)
+    }
+    prevEpisodesLengthRef.current = episodes.length
+  }, [episodes.length])
+
+  // Stop audio and navigate to latest position when generation starts
+  useEffect(() => {
+    if (isGenerating && !wasGeneratingRef.current) {
+      // Generation just started - remember if audio was playing, then stop
+      const wasPlaying = isPlaying
+      stop()
+      setCurrentIndex(episodes.length - 1)
+
+      // If audio was playing, set flag to auto-play when first sentence arrives
+      // We can't call play() immediately because the queue is empty and the
+      // audio processor would immediately set isPlaying back to false
+      if (wasPlaying) {
+        autoPlayOnFirstSentenceRef.current = true
+      }
+
+      // Reset auto-play flag - we've already handled playback for streaming
+      // This prevents the auto-play effect from re-queuing when generation completes
+      shouldAutoPlayRef.current = false
+    }
+    wasGeneratingRef.current = isGenerating
+  }, [isGenerating, episodes.length, stop, isPlaying])
+
+  // Auto-play when queue has content and auto-play flag is set
+  // This effect watches the queue and starts playback when content arrives,
+  // avoiding race conditions from calling play() immediately after queueContent()
+  useEffect(() => {
+    if (autoPlayOnFirstSentenceRef.current && audioQueue.length > 0) {
+      // Queue has content and we should auto-play - start playing
+      play()
+      autoPlayOnFirstSentenceRef.current = false
+    }
+  }, [audioQueue.length, play])
+
+  // Queue content when navigating to a new chapter (if audio was playing)
+  useEffect(() => {
+    if (currentIndex !== prevIndexRef.current && shouldAutoPlayRef.current) {
+      // Index changed and we should auto-play
+      const newEpisode = episodes[currentIndex]
+      if (newEpisode?.content) {
+        // Queue the content - the effect above will start playback
+        // when it detects the queue went from empty to populated
+        queueContent(newEpisode.content)
+        autoPlayOnFirstSentenceRef.current = true
+      }
+      shouldAutoPlayRef.current = false
+    }
+    prevIndexRef.current = currentIndex
+  }, [currentIndex, episodes, queueContent])
 
   const currentEpisode = episodes[currentIndex]
 
+  // Show streaming content if we're generating and on the latest episode
+  const showStreaming = isGenerating && currentIndex === episodes.length - 1
+  const displayContent = showStreaming
+    ? streamingContent
+    : currentEpisode?.content
+
   const goToPrevious = () => {
     if (currentIndex > 0) {
+      // Remember if audio was playing before stopping
+      shouldAutoPlayRef.current = isPlaying
       stop()
       setCurrentIndex(currentIndex - 1)
     }
@@ -30,6 +101,8 @@ export default function EpisodeReader({
 
   const goToNext = () => {
     if (currentIndex < episodes.length - 1) {
+      // Remember if audio was playing before stopping
+      shouldAutoPlayRef.current = isPlaying
       stop()
       setCurrentIndex(currentIndex + 1)
     }
@@ -39,15 +112,14 @@ export default function EpisodeReader({
     if (isPlaying) {
       pause()
     } else {
+      // Always re-queue if streaming to ensure current content is played
+      // Otherwise, only queue if the queue is empty
+      if (displayContent && (showStreaming || audioQueue.length === 0)) {
+        queueContent(displayContent)
+      }
       play()
     }
   }
-
-  // Show streaming content if we're generating and on the latest episode
-  const showStreaming = isGenerating && currentIndex === episodes.length - 1
-  const displayContent = showStreaming
-    ? streamingContent
-    : currentEpisode?.content
 
   if (episodes.length === 0 && !isGenerating) {
     return (

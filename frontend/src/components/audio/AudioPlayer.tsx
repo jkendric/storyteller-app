@@ -1,11 +1,11 @@
 import { Play, Pause, Square, Volume2, VolumeX } from 'lucide-react'
 import { useAudioStore } from '../../stores/audioStore'
-import { useAudioPlayer } from '../../hooks/useAudioPlayer'
+import { useAudioPlayerContext } from '../../contexts/AudioPlayerContext'
 
 export default function AudioPlayer() {
   const { volume, playbackRate, setVolume, setPlaybackRate } = useAudioStore()
   const { play, pause, stop, isPlaying, currentSentenceIndex, queueLength } =
-    useAudioPlayer()
+    useAudioPlayerContext()
 
   const progress = queueLength > 0 ? (currentSentenceIndex / queueLength) * 100 : 0
 

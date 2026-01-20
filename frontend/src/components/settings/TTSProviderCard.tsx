@@ -1,32 +1,34 @@
 import { useState } from 'react'
-import { Edit, Trash2, Play, Star, Zap, Check, X, Loader2 } from 'lucide-react'
-import type { LLMProvider, ProviderTestResult } from '../../api/client'
+import { Edit, Trash2, Play, Star, Check, X, Loader2, Radio, Mic } from 'lucide-react'
+import type { TTSProvider, TTSProviderTestResult } from '../../api/client'
 
-interface ProviderCardProps {
-  provider: LLMProvider
-  onEdit: (provider: LLMProvider) => void
-  onDelete: (provider: LLMProvider) => void
-  onTest: (provider: LLMProvider) => Promise<ProviderTestResult>
-  onSetDefault: (provider: LLMProvider) => void
-  onSetAlternate: (provider: LLMProvider) => void
+interface TTSProviderCardProps {
+  provider: TTSProvider
+  onEdit: (provider: TTSProvider) => void
+  onDelete: (provider: TTSProvider) => void
+  onTest: (provider: TTSProvider) => Promise<TTSProviderTestResult>
+  onSetDefault: (provider: TTSProvider) => void
+  onManageVoiceClones?: (provider: TTSProvider) => void
 }
 
 const providerTypeLabels: Record<string, string> = {
-  ollama: 'Ollama',
-  lmstudio: 'LM Studio',
-  koboldcpp: 'KoboldCpp',
+  kokoro: 'Kokoro',
+  piper: 'Piper',
+  coqui_xtts: 'Coqui XTTS',
+  openai_compatible: 'OpenAI Compatible',
+  chatterbox: 'Chatterbox',
 }
 
-export default function ProviderCard({
+export default function TTSProviderCard({
   provider,
   onEdit,
   onDelete,
   onTest,
   onSetDefault,
-  onSetAlternate,
-}: ProviderCardProps) {
+  onManageVoiceClones,
+}: TTSProviderCardProps) {
   const [isTesting, setIsTesting] = useState(false)
-  const [testResult, setTestResult] = useState<ProviderTestResult | null>(null)
+  const [testResult, setTestResult] = useState<TTSProviderTestResult | null>(null)
 
   const handleTest = async () => {
     setIsTesting(true)
@@ -44,13 +46,8 @@ export default function ProviderCard({
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-2">
           {provider.is_default && (
-            <span title="Default provider">
+            <span title="Default TTS provider">
               <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-            </span>
-          )}
-          {provider.is_alternate && (
-            <span title="Alternate provider">
-              <Zap className="w-4 h-4 text-purple-400" />
             </span>
           )}
           <h3 className="text-lg font-semibold text-white">{provider.name}</h3>
@@ -89,6 +86,18 @@ export default function ProviderCard({
         <span className="px-2 py-1 bg-primary-900/50 text-primary-300 rounded text-xs">
           {providerTypeLabels[provider.provider_type] || provider.provider_type}
         </span>
+        {provider.supports_streaming && (
+          <span className="px-2 py-1 bg-blue-900/50 text-blue-300 rounded text-xs flex items-center gap-1">
+            <Radio className="w-3 h-3" />
+            Streaming
+          </span>
+        )}
+        {provider.supports_voice_cloning && (
+          <span className="px-2 py-1 bg-purple-900/50 text-purple-300 rounded text-xs flex items-center gap-1">
+            <Mic className="w-3 h-3" />
+            Voice Cloning
+          </span>
+        )}
         {!provider.enabled && (
           <span className="px-2 py-1 bg-gray-700 text-gray-400 rounded text-xs">
             Disabled
@@ -101,10 +110,10 @@ export default function ProviderCard({
           <span className="text-gray-500">URL: </span>
           <span className="text-gray-300 font-mono text-xs">{provider.base_url}</span>
         </div>
-        {provider.default_model && (
+        {provider.default_voice && (
           <div>
-            <span className="text-gray-500">Model: </span>
-            <span className="text-gray-300">{provider.default_model}</span>
+            <span className="text-gray-500">Voice: </span>
+            <span className="text-gray-300">{provider.default_voice}</span>
           </div>
         )}
       </div>
@@ -125,11 +134,11 @@ export default function ProviderCard({
               {testResult.message}
             </span>
           </div>
-          {testResult.models && testResult.models.length > 0 && (
+          {testResult.voices && testResult.voices.length > 0 && (
             <div className="mt-2 text-gray-400">
-              <span className="text-gray-500">Available models: </span>
-              {testResult.models.slice(0, 5).join(', ')}
-              {testResult.models.length > 5 && ` +${testResult.models.length - 5} more`}
+              <span className="text-gray-500">Available voices: </span>
+              {testResult.voices.slice(0, 5).join(', ')}
+              {testResult.voices.length > 5 && ` +${testResult.voices.length - 5} more`}
             </div>
           )}
         </div>
@@ -144,12 +153,12 @@ export default function ProviderCard({
             Set as Default
           </button>
         )}
-        {!provider.is_alternate && (
+        {provider.supports_voice_cloning && onManageVoiceClones && (
           <button
-            onClick={() => onSetAlternate(provider)}
+            onClick={() => onManageVoiceClones(provider)}
             className="text-xs px-2 py-1 text-gray-400 hover:text-purple-400 hover:bg-purple-400/10 rounded transition-colors"
           >
-            Set as Alternate
+            Manage Voice Clones
           </button>
         )}
       </div>
