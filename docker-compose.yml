@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/storyteller.db
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - KOKORO_TTS_URL=http://host.docker.internal:8880
+      - TTS_DEFAULT_VOICE=${TTS_DEFAULT_VOICE:-af_bella}
+      - EPISODE_TARGET_WORDS=${EPISODE_TARGET_WORDS:-1250}
+      - CORS_ORIGINS=["http://localhost:5173","http://localhost:3000","http://localhost"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  data:
