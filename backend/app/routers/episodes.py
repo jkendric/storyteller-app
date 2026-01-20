@@ -131,6 +131,7 @@ async def generate_episode(
             story_id=story_id,
             guidance=request.guidance,
             target_words=request.target_words,
+            use_alternate=request.use_alternate,
         ):
             event_type = event.get("event", "message")
             data = event.get("data", "")

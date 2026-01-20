@@ -3,6 +3,7 @@ from app.routers.scenarios import router as scenarios_router
 from app.routers.stories import router as stories_router
 from app.routers.episodes import router as episodes_router
 from app.routers.tts import router as tts_router
+from app.routers.settings import router as settings_router
 
 __all__ = [
     "characters_router",
@@ -10,4 +11,5 @@ __all__ = [
     "stories_router",
     "episodes_router",
     "tts_router",
+    "settings_router",
 ]

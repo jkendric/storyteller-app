@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Sparkles, Square, GitBranch } from 'lucide-react'
+import { Sparkles, Square, GitBranch, Zap } from 'lucide-react'
 
 interface GenerationControlsProps {
   isGenerating: boolean
   episodeCount: number
-  onGenerate: (guidance?: string) => void
+  onGenerate: (guidance?: string, useAlternate?: boolean) => void
   onStop: () => void
   onFork: (fromEpisode: number, newTitle: string) => void
 }
@@ -17,12 +17,13 @@ export default function GenerationControls({
   onFork,
 }: GenerationControlsProps) {
   const [guidance, setGuidance] = useState('')
+  const [useAlternate, setUseAlternate] = useState(false)
   const [showForkModal, setShowForkModal] = useState(false)
   const [forkEpisode, setForkEpisode] = useState(episodeCount)
   const [forkTitle, setForkTitle] = useState('')
 
   const handleGenerate = () => {
-    onGenerate(guidance || undefined)
+    onGenerate(guidance || undefined, useAlternate)
     setGuidance('')
   }
 
@@ -54,6 +55,23 @@ export default function GenerationControls({
           placeholder="Suggest plot points, character actions, or themes to explore..."
           disabled={isGenerating}
         />
+      </div>
+
+      {/* Model selection */}
+      <div className="mb-4">
+        <label className="flex items-center space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={useAlternate}
+            onChange={(e) => setUseAlternate(e.target.checked)}
+            disabled={isGenerating}
+            className="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500"
+          />
+          <Zap className={`w-4 h-4 ${useAlternate ? 'text-purple-400' : 'text-gray-500'}`} />
+          <span className={`text-sm ${useAlternate ? 'text-purple-300' : 'text-gray-400'}`}>
+            Use alternate model
+          </span>
+        </label>
       </div>
 
       {/* Action buttons */}

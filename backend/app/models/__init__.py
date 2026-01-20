@@ -3,6 +3,7 @@ from app.models.scenario import Scenario
 from app.models.story import Story, StoryCharacter
 from app.models.episode import Episode
 from app.models.memory import MemoryState
+from app.models.llm_provider import LLMProvider, ProviderType
 
 __all__ = [
     "Character",
@@ -11,4 +12,6 @@ __all__ = [
     "StoryCharacter",
     "Episode",
     "MemoryState",
+    "LLMProvider",
+    "ProviderType",
 ]

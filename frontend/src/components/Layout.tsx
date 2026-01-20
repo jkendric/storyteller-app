@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { BookOpen, Users, Map, Library, Home } from 'lucide-react'
+import { BookOpen, Users, Map, Library, Home, Settings } from 'lucide-react'
 
 interface LayoutProps {
   children: ReactNode
@@ -11,6 +11,7 @@ const navItems = [
   { path: '/characters', label: 'Characters', icon: Users },
   { path: '/scenarios', label: 'Scenarios', icon: Map },
   { path: '/stories', label: 'Stories', icon: Library },
+  { path: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function Layout({ children }: LayoutProps) {

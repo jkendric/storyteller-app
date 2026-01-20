@@ -6,6 +6,7 @@ import ScenariosPage from './pages/ScenariosPage'
 import StoriesPage from './pages/StoriesPage'
 import StoryReaderPage from './pages/StoryReaderPage'
 import NewStoryPage from './pages/NewStoryPage'
+import SettingsPage from './pages/SettingsPage'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/stories" element={<StoriesPage />} />
         <Route path="/stories/new" element={<NewStoryPage />} />
         <Route path="/stories/:storyId" element={<StoryReaderPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </Layout>
   )

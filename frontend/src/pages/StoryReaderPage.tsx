@@ -59,10 +59,11 @@ export default function StoryReaderPage() {
     }
   }, [clearStreaming])
 
-  const handleGenerate = (guidance?: string) => {
+  const handleGenerate = (guidance?: string, useAlternate?: boolean) => {
     startGeneration({
       storyId: id,
       guidance,
+      useAlternate,
       onComplete: () => {
         queryClient.invalidateQueries({ queryKey: ['episodes', id] })
         queryClient.invalidateQueries({ queryKey: ['story', id] })

@@ -67,6 +67,51 @@ export interface Voice {
   gender?: string
 }
 
+export type ProviderType = 'ollama' | 'lmstudio' | 'koboldcpp'
+
+export interface LLMProvider {
+  id: number
+  name: string
+  provider_type: ProviderType
+  base_url: string
+  default_model?: string
+  is_default: boolean
+  is_alternate: boolean
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface LLMProviderCreate {
+  name: string
+  provider_type: ProviderType
+  base_url: string
+  default_model?: string
+  is_default?: boolean
+  is_alternate?: boolean
+  enabled?: boolean
+}
+
+export interface LLMProviderUpdate {
+  name?: string
+  provider_type?: ProviderType
+  base_url?: string
+  default_model?: string
+  is_default?: boolean
+  is_alternate?: boolean
+  enabled?: boolean
+}
+
+export interface ProviderTestResult {
+  status: 'ok' | 'error'
+  message?: string
+  models?: string[]
+}
+
+export interface ProviderModelsResponse {
+  models: Array<{ id?: string; name?: string }>
+}
+
 class ApiClient {
   private async request<T>(
     endpoint: string,
@@ -210,6 +255,47 @@ class ApiClient {
 
   async getVoices(): Promise<Voice[]> {
     return this.request('/tts/voices')
+  }
+
+  // LLM Providers
+  async getProviders(): Promise<{ providers: LLMProvider[]; total: number }> {
+    return this.request('/settings/providers')
+  }
+
+  async getProvider(id: number): Promise<LLMProvider> {
+    return this.request(`/settings/providers/${id}`)
+  }
+
+  async createProvider(data: LLMProviderCreate): Promise<LLMProvider> {
+    return this.request('/settings/providers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateProvider(id: number, data: LLMProviderUpdate): Promise<LLMProvider> {
+    return this.request(`/settings/providers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteProvider(id: number): Promise<void> {
+    await this.request(`/settings/providers/${id}`, { method: 'DELETE' })
+  }
+
+  async testProvider(id: number): Promise<ProviderTestResult> {
+    return this.request(`/settings/providers/${id}/test`, { method: 'POST' })
+  }
+
+  async getProviderModels(id: number): Promise<ProviderModelsResponse> {
+    return this.request(`/settings/providers/${id}/models`)
+  }
+
+  async testProviderUrl(baseUrl: string): Promise<ProviderTestResult> {
+    return this.request(`/settings/providers/test-url?base_url=${encodeURIComponent(baseUrl)}`, {
+      method: 'POST',
+    })
   }
 
   // Health

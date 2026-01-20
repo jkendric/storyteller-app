@@ -59,6 +59,7 @@ class EpisodeGenerateRequest(BaseModel):
     """Schema for requesting episode generation."""
     guidance: Optional[str] = None
     target_words: Optional[int] = Field(None, ge=100, le=5000)
+    use_alternate: bool = False  # Use alternate/uncensored provider
 
 
 class EpisodeStreamEvent(BaseModel):

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Story, Episode, StoryCharacter, MemoryState
 from app.models.story import StoryStatus
-from app.services.llm_service import llm_service
+from app.services.llm_service import llm_service, ProviderManager
 from app.services.memory_service import memory_service
 from app.services.prompt_service import prompt_service
 from app.config import get_settings
@@ -21,6 +21,7 @@ class StoryService:
         story_id: int,
         guidance: Optional[str] = None,
         target_words: Optional[int] = None,
+        use_alternate: bool = False,
     ) -> AsyncGenerator[dict, None]:
         """Generate a new episode with streaming."""
         story = db.query(Story).filter(Story.id == story_id).first()
@@ -60,6 +61,9 @@ class StoryService:
                 target_words=target_words or settings.episode_target_words,
             )
 
+            # Get the appropriate provider
+            provider = ProviderManager.get_provider_for_generation(db, use_alternate)
+
             # Stream generation
             full_content = ""
             current_sentence = ""
@@ -68,6 +72,7 @@ class StoryService:
             async for token in llm_service.generate_stream(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
+                provider=provider,
             ):
                 full_content += token
                 current_sentence += token

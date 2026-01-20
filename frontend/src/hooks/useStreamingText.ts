@@ -6,6 +6,7 @@ interface StreamingOptions {
   storyId: number
   guidance?: string
   targetWords?: number
+  useAlternate?: boolean
   onComplete?: (episodeId: number, title: string, wordCount: number) => void
   onError?: (error: string) => void
 }
@@ -24,7 +25,7 @@ export function useStreamingText() {
 
   const startGeneration = useCallback(
     async (options: StreamingOptions) => {
-      const { storyId, guidance, targetWords, onComplete, onError } = options
+      const { storyId, guidance, targetWords, useAlternate, onComplete, onError } = options
 
       // Abort any existing generation
       if (abortControllerRef.current) {
@@ -46,6 +47,7 @@ export function useStreamingText() {
             body: JSON.stringify({
               guidance,
               target_words: targetWords,
+              use_alternate: useAlternate ?? false,
             }),
             signal: abortControllerRef.current.signal,
           }
