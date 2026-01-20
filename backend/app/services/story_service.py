@@ -100,9 +100,9 @@ class StoryService:
                     "episode_id": new_episode.id,
                 }
 
-            # Update episode with content
-            new_episode.content = full_content
-            new_episode.word_count = len(full_content.split())
+            # Update episode with cleaned content
+            new_episode.content = self._clean_content(full_content)
+            new_episode.word_count = len(new_episode.content.split())
 
             # Generate title and summary
             title = await self._generate_title(full_content)
@@ -135,10 +135,50 @@ class StoryService:
     async def _generate_title(self, content: str) -> str:
         """Generate a title for the episode."""
         prompt = prompt_service.build_title_prompt(content)
-        title = await llm_service.generate(prompt=prompt, temperature=0.7, max_tokens=20)
-        # Clean up the title
-        title = title.strip().strip('"\'')
-        return title[:255] if title else "Untitled"
+        raw = await llm_service.generate(prompt=prompt, temperature=0.7, max_tokens=50)
+        return self._clean_title(raw)
+
+    def _clean_title(self, raw: str) -> str:
+        """Extract clean title from LLM response, handling preamble and multiple options."""
+        # Extract first quoted string if present (handles "1. "Title" 2. "Other"")
+        quoted = re.search(r'["\']([^"\']+)["\']', raw)
+        if quoted:
+            return quoted.group(1).strip()[:255]
+
+        # Remove common preambles like "Here are some options:"
+        cleaned = re.sub(r'^(?:Here (?:are|is)[^\n]*:?\s*)', '', raw, flags=re.IGNORECASE)
+        # Remove leading numbered list format "1. "
+        cleaned = re.sub(r'^\d+\.\s*', '', cleaned)
+        # Final cleanup
+        cleaned = cleaned.strip().strip('"\'')
+
+        return cleaned[:255] if cleaned else "Untitled"
+
+    # Patterns to strip from beginning of generated content
+    CLEANUP_PATTERNS = [
+        # Title with explanation: "Title" This title hints at...
+        (r'^["\'][^"\']+["\'][\s]*(?:This title|This hints|This captures|This reflects)[^\n]*\n*', re.IGNORECASE),
+        # Title suggestions intro + numbered list
+        (r'^Here (?:are|is)[^\n]*(?:title|option)[^\n]*:\s*\n?(?:\d+\.[^\n]*\n)*', re.IGNORECASE),
+        # Standalone numbered title lists
+        (r'^(?:\d+\.\s*["\'][^\n]*\n?)+', re.MULTILINE),
+        # Episode headers
+        (r'^\*{0,2}Episode\s+\d+[:\s].*?\*{0,2}\s*\n+', re.IGNORECASE | re.MULTILINE),
+        (r'^#{1,3}\s*Episode\s+\d+.*?\n+', re.IGNORECASE | re.MULTILINE),
+        # Preamble phrases
+        (r'^(?:Certainly|Sure|Of course|Absolutely)[!,.].*?\n+', re.IGNORECASE),
+        (r'^(?:Here\'s|Here is)[^\n]*(?:episode|story|chapter)[^\n]*:\s*\n+', re.IGNORECASE),
+    ]
+
+    def _clean_content(self, content: str) -> str:
+        """Remove common LLM meta-commentary from generated content."""
+        cleaned = content
+
+        for pattern, flags in self.CLEANUP_PATTERNS:
+            cleaned = re.sub(pattern, '', cleaned, flags=flags)
+
+        # Strip leading/trailing whitespace
+        return cleaned.strip()
 
     def fork_story(
         self,
