@@ -5,6 +5,7 @@ from app.models.episode import Episode
 from app.models.memory import MemoryState
 from app.models.llm_provider import LLMProvider, ProviderType
 from app.models.tts_provider import TTSProvider, TTSProviderType, TTSVoiceClone
+from app.models.speed_button import SpeedButton
 
 __all__ = [
     "Character",
@@ -18,4 +19,5 @@ __all__ = [
     "TTSProvider",
     "TTSProviderType",
     "TTSVoiceClone",
+    "SpeedButton",
 ]

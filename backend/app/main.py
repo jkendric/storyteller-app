@@ -13,9 +13,11 @@ from app.routers import (
     tts_router,
     settings_router,
     tts_settings_router,
+    speed_buttons_router,
 )
 from app.models.llm_provider import LLMProvider, ProviderType
 from app.models.tts_provider import TTSProvider, TTSProviderType
+from app.models.speed_button import SpeedButton
 from app.services.llm_service import llm_service, ProviderManager
 from app.services.tts.unified import unified_tts_service
 
@@ -49,6 +51,54 @@ app.include_router(episodes_router)
 app.include_router(tts_router)
 app.include_router(settings_router)
 app.include_router(tts_settings_router)
+app.include_router(speed_buttons_router)
+
+
+DEFAULT_SPEED_BUTTONS = [
+    {
+        "label": "Action Scene",
+        "guidance": "Focus on dynamic action, tension, and physical conflict. Emphasize movement, stakes, and consequences.",
+        "use_alternate": False,
+        "display_order": 0,
+    },
+    {
+        "label": "Dialogue Focus",
+        "guidance": "Emphasize character conversations and verbal exchanges. Reveal personality through speech patterns and reactions.",
+        "use_alternate": False,
+        "display_order": 1,
+    },
+    {
+        "label": "Emotional Scene",
+        "guidance": "Deep dive into character emotions and internal conflict. Explore feelings, relationships, and personal stakes.",
+        "use_alternate": False,
+        "display_order": 2,
+    },
+    {
+        "label": "Plot Twist",
+        "guidance": "Introduce surprising revelations or unexpected turns. Subvert expectations while maintaining narrative logic.",
+        "use_alternate": False,
+        "display_order": 3,
+    },
+]
+
+
+def init_default_speed_buttons():
+    """Create default speed button presets if none exist."""
+    db = SessionLocal()
+    try:
+        if db.query(SpeedButton).count() == 0:
+            for button_data in DEFAULT_SPEED_BUTTONS:
+                button = SpeedButton(
+                    label=button_data["label"],
+                    guidance=button_data["guidance"],
+                    use_alternate=button_data["use_alternate"],
+                    display_order=button_data["display_order"],
+                    is_default=True,
+                )
+                db.add(button)
+            db.commit()
+    finally:
+        db.close()
 
 
 def init_default_providers():
@@ -92,6 +142,7 @@ async def startup():
     """Initialize database on startup."""
     init_db()
     init_default_providers()
+    init_default_speed_buttons()
 
 
 @app.get("/api/health")

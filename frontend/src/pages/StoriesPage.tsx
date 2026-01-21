@@ -27,7 +27,30 @@ export default function StoriesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.deleteStory(id),
-    onSuccess: () => {
+    onMutate: async (deletedId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['stories'] })
+      // Snapshot the previous value
+      const previousStories = queryClient.getQueryData(['stories'])
+      // Optimistically remove the story
+      queryClient.setQueryData(['stories'], (old: { stories: Story[]; total: number } | undefined) => {
+        if (!old) return old
+        return {
+          ...old,
+          stories: old.stories.filter((s) => s.id !== deletedId),
+          total: old.total - 1,
+        }
+      })
+      return { previousStories }
+    },
+    onError: (_err, _deletedId, context) => {
+      // Rollback on error
+      if (context?.previousStories) {
+        queryClient.setQueryData(['stories'], context.previousStories)
+      }
+    },
+    onSettled: () => {
+      // Refetch to ensure sync with server
       queryClient.invalidateQueries({ queryKey: ['stories'] })
     },
   })

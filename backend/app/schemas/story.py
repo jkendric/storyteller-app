@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 from enum import Enum
 
 
@@ -17,6 +17,13 @@ class CharacterRole(str, Enum):
     PROTAGONIST = "protagonist"
     SUPPORTING = "supporting"
     ANTAGONIST = "antagonist"
+
+
+# Story generation settings types
+TargetWordPreset = Literal["short", "medium", "long", "epic"]
+WritingStyle = Literal["descriptive", "action", "dialogue", "balanced"]
+MoodSetting = Literal["light", "moderate", "intense", "dark"]
+PacingSetting = Literal["slow", "moderate", "fast"]
 
 
 class StoryCharacterCreate(BaseModel):
@@ -45,12 +52,24 @@ class StoryBase(BaseModel):
 class StoryCreate(StoryBase):
     """Schema for creating a new story."""
     characters: list[StoryCharacterCreate] = []
+    # Generation settings (optional, defaults applied if not provided)
+    target_word_preset: Optional[TargetWordPreset] = None
+    temperature: Optional[float] = Field(None, ge=0.5, le=1.0)
+    writing_style: Optional[WritingStyle] = None
+    mood: Optional[MoodSetting] = None
+    pacing: Optional[PacingSetting] = None
 
 
 class StoryUpdate(BaseModel):
     """Schema for updating a story."""
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     status: Optional[StoryStatus] = None
+    # Generation settings
+    target_word_preset: Optional[TargetWordPreset] = None
+    temperature: Optional[float] = Field(None, ge=0.5, le=1.0)
+    writing_style: Optional[WritingStyle] = None
+    mood: Optional[MoodSetting] = None
+    pacing: Optional[PacingSetting] = None
 
 
 class StoryResponse(StoryBase):
@@ -63,6 +82,12 @@ class StoryResponse(StoryBase):
     updated_at: datetime
     episode_count: int = 0
     characters: list[StoryCharacterResponse] = []
+    # Generation settings
+    target_word_preset: TargetWordPreset = "medium"
+    temperature: float = 0.7
+    writing_style: WritingStyle = "balanced"
+    mood: MoodSetting = "moderate"
+    pacing: PacingSetting = "moderate"
 
     class Config:
         from_attributes = True

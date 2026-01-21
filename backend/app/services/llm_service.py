@@ -69,6 +69,7 @@ class UnifiedLLMService:
             ) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
+                    print(f"[DEBUG] Raw line: {line[:300] if line else '(empty)'}")
                     if line.startswith("data: "):
                         data_str = line[6:]
                         if data_str.strip() == "[DONE]":
@@ -76,9 +77,14 @@ class UnifiedLLMService:
                         try:
                             data = json.loads(data_str)
                             if "choices" in data and len(data["choices"]) > 0:
-                                delta = data["choices"][0].get("delta", {})
+                                choice = data["choices"][0]
+                                # Try delta first (streaming format)
+                                delta = choice.get("delta", {})
                                 if "content" in delta:
                                     yield delta["content"]
+                                # Fallback to message format (some providers use this)
+                                elif "message" in choice and "content" in choice["message"]:
+                                    yield choice["message"]["content"]
                         except json.JSONDecodeError:
                             continue
                     elif line and not line.startswith(":"):
@@ -86,9 +92,14 @@ class UnifiedLLMService:
                         try:
                             data = json.loads(line)
                             if "choices" in data and len(data["choices"]) > 0:
-                                delta = data["choices"][0].get("delta", {})
+                                choice = data["choices"][0]
+                                # Try delta first (streaming format)
+                                delta = choice.get("delta", {})
                                 if "content" in delta:
                                     yield delta["content"]
+                                # Fallback to message format (some providers use this)
+                                elif "message" in choice and "content" in choice["message"]:
+                                    yield choice["message"]["content"]
                             # Also handle message format (Ollama native)
                             elif "message" in data and "content" in data["message"]:
                                 yield data["message"]["content"]
@@ -105,7 +116,9 @@ class UnifiedLLMService:
         model: Optional[str] = None,
     ) -> str:
         """Generate text from the LLM without streaming."""
+        print(f"[DEBUG] llm_service.generate() called, max_tokens={max_tokens}")
         full_response = ""
+        token_count = 0
         async for token in self.generate_stream(
             prompt=prompt,
             system_prompt=system_prompt,
@@ -114,7 +127,9 @@ class UnifiedLLMService:
             provider=provider,
             model=model,
         ):
+            token_count += 1
             full_response += token
+        print(f"[DEBUG] llm_service.generate() finished, tokens={token_count}, response_len={len(full_response)}")
         return full_response
 
     async def list_models(self, provider: Optional[LLMProvider] = None) -> list[dict]:

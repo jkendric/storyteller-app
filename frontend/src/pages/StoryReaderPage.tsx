@@ -82,6 +82,11 @@ export default function StoryReaderPage() {
     }
   }
 
+  const handleStoryUpdate = () => {
+    // Refetch story to get updated settings
+    queryClient.invalidateQueries({ queryKey: ['story', id] })
+  }
+
   if (storyLoading || episodesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -136,9 +141,11 @@ export default function StoryReaderPage() {
           <GenerationControls
             isGenerating={isGenerating}
             episodeCount={episodes.length}
+            story={story}
             onGenerate={handleGenerate}
             onStop={stopGeneration}
             onFork={handleFork}
+            onStoryUpdate={handleStoryUpdate}
           />
 
           <AudioPlayer />

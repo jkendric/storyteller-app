@@ -12,8 +12,14 @@ class MemoryService:
     ACTIVE_MEMORY_EPISODES = 3  # Full text for last N episodes
     BACKGROUND_MEMORY_EPISODES = 7  # Summaries for episodes 4-10 (7 more)
 
-    async def build_context(self, db: Session, story_id: int) -> dict:
-        """Build the full context for story generation."""
+    async def build_context(self, db: Session, story_id: int, target_words: int = 1250) -> dict:
+        """Build the full context for story generation.
+
+        Args:
+            db: Database session
+            story_id: ID of the story
+            target_words: Target word count for the episode (affects context sizing)
+        """
         story = db.query(Story).filter(Story.id == story_id).first()
         if not story:
             raise ValueError(f"Story {story_id} not found")
@@ -25,13 +31,27 @@ class MemoryService:
             .all()
         )
 
-        # Build memory tiers
-        active_memory = self._build_active_memory(episodes[:self.ACTIVE_MEMORY_EPISODES])
+        # Adaptive active memory based on target length
+        if target_words <= 750:
+            active_episodes = 1
+            use_condensed = True
+        elif target_words <= 1250:
+            active_episodes = 2
+            use_condensed = False
+        else:
+            active_episodes = self.ACTIVE_MEMORY_EPISODES  # 3
+            use_condensed = False
+
+        # Build memory tiers with adaptive sizing
+        active_memory = self._build_active_memory(
+            episodes[:active_episodes],
+            condensed=use_condensed
+        )
         background_memory = self._build_background_memory(
-            episodes[self.ACTIVE_MEMORY_EPISODES:self.ACTIVE_MEMORY_EPISODES + self.BACKGROUND_MEMORY_EPISODES]
+            episodes[active_episodes:active_episodes + self.BACKGROUND_MEMORY_EPISODES]
         )
         faded_memory = await self._build_faded_memory(
-            db, story_id, episodes[self.ACTIVE_MEMORY_EPISODES + self.BACKGROUND_MEMORY_EPISODES:]
+            db, story_id, episodes[active_episodes + self.BACKGROUND_MEMORY_EPISODES:]
         )
 
         # Get character states
@@ -50,16 +70,41 @@ class MemoryService:
             "next_episode_number": len(episodes) + 1,
         }
 
-    def _build_active_memory(self, episodes: list[Episode]) -> str:
-        """Build active memory from recent episodes (full text)."""
+    def _build_active_memory(self, episodes: list[Episode], condensed: bool = False) -> str:
+        """Build active memory from recent episodes.
+
+        Args:
+            episodes: List of recent episodes
+            condensed: If True, use summary + last paragraphs only (reduces context ~80%)
+        """
         if not episodes:
             return ""
 
         parts = []
         for ep in reversed(episodes):  # Chronological order
-            parts.append(f"=== Episode {ep.number}: {ep.title or 'Untitled'} ===\n{ep.content}")
+            if condensed:
+                # Condensed format: summary + last 2 paragraphs only
+                content_parts = []
+                if ep.summary:
+                    content_parts.append(f"Summary: {ep.summary}")
+                ending = self._get_last_paragraphs(ep.content, n=2)
+                if ending:
+                    content_parts.append(f"Ending:\n{ending}")
+                content = "\n\n".join(content_parts)
+            else:
+                # Full format: entire episode text
+                content = ep.content
+
+            parts.append(f"=== Episode {ep.number}: {ep.title or 'Untitled'} ===\n{content}")
 
         return "\n\n".join(parts)
+
+    def _get_last_paragraphs(self, content: str, n: int = 2) -> str:
+        """Extract the last N paragraphs from content."""
+        if not content:
+            return ""
+        paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+        return '\n\n'.join(paragraphs[-n:]) if paragraphs else content
 
     def _build_background_memory(self, episodes: list[Episode]) -> str:
         """Build background memory from summaries."""
@@ -128,7 +173,7 @@ class MemoryService:
             "world_rules": scenario.world_rules,
         }
 
-    async def generate_summary(self, content: str) -> str:
+    async def generate_summary(self, content: str, provider=None) -> str:
         """Generate a summary for an episode using LLM."""
         prompt = f"""Summarize the following story episode in 2-3 sentences.
 Focus on key plot points, character developments, and important events.
@@ -142,6 +187,7 @@ Summary:"""
             prompt=prompt,
             temperature=0.3,
             max_tokens=200,
+            provider=provider,
         )
         return summary.strip()
 

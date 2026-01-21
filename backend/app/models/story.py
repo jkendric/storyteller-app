@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -34,6 +34,13 @@ class Story(Base):
     fork_from_episode = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Generation Settings (nullable - uses defaults if not set)
+    target_word_preset = Column(String(20), default="medium")  # short, medium, long, epic
+    temperature = Column(Float, default=0.7)
+    writing_style = Column(String(20), default="balanced")  # descriptive, action, dialogue, balanced
+    mood = Column(String(20), default="moderate")  # light, moderate, intense, dark
+    pacing = Column(String(20), default="moderate")  # slow, moderate, fast
 
     # Relationships
     scenario = relationship("Scenario", back_populates="stories")

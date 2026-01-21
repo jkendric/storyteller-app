@@ -54,6 +54,13 @@ from app.schemas.tts_provider import (
     VoiceCloneResponse,
     VoiceCloneList,
 )
+from app.schemas.speed_button import (
+    SpeedButtonCreate,
+    SpeedButtonUpdate,
+    SpeedButtonResponse,
+    SpeedButtonList,
+    SpeedButtonReorder,
+)
 
 __all__ = [
     # Character
@@ -106,4 +113,10 @@ __all__ = [
     "VoiceCloneCreate",
     "VoiceCloneResponse",
     "VoiceCloneList",
+    # Speed Button
+    "SpeedButtonCreate",
+    "SpeedButtonUpdate",
+    "SpeedButtonResponse",
+    "SpeedButtonList",
+    "SpeedButtonReorder",
 ]

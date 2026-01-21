@@ -33,6 +33,20 @@ export interface StoryCharacter {
   character_name?: string
 }
 
+// Story generation settings types
+export type TargetWordPreset = 'short' | 'medium' | 'long' | 'epic'
+export type WritingStyle = 'descriptive' | 'action' | 'dialogue' | 'balanced'
+export type MoodSetting = 'light' | 'moderate' | 'intense' | 'dark'
+export type PacingSetting = 'slow' | 'moderate' | 'fast'
+
+export interface StorySettings {
+  target_word_preset: TargetWordPreset
+  temperature: number
+  writing_style: WritingStyle
+  mood: MoodSetting
+  pacing: PacingSetting
+}
+
 export interface Story {
   id: number
   title: string
@@ -44,6 +58,12 @@ export interface Story {
   updated_at: string
   episode_count: number
   characters: StoryCharacter[]
+  // Generation settings
+  target_word_preset: TargetWordPreset
+  temperature: number
+  writing_style: WritingStyle
+  mood: MoodSetting
+  pacing: PacingSetting
 }
 
 export interface Episode {
@@ -182,6 +202,32 @@ export interface VoiceCloneCreate {
   name: string
   description?: string
   language?: string
+}
+
+// Speed Button Types
+export interface SpeedButton {
+  id: number
+  label: string
+  guidance?: string
+  use_alternate: boolean
+  display_order: number
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface SpeedButtonCreate {
+  label: string
+  guidance?: string
+  use_alternate?: boolean
+  display_order?: number
+}
+
+export interface SpeedButtonUpdate {
+  label?: string
+  guidance?: string
+  use_alternate?: boolean
+  display_order?: number
 }
 
 class ApiClient {
@@ -498,6 +544,40 @@ class ApiClient {
   // Health
   async getHealth(): Promise<{ status: string; services: Record<string, unknown> }> {
     return this.request('/health')
+  }
+
+  // Speed Buttons
+  async getSpeedButtons(): Promise<{ speed_buttons: SpeedButton[]; total: number }> {
+    return this.request('/speed-buttons')
+  }
+
+  async getSpeedButton(id: number): Promise<SpeedButton> {
+    return this.request(`/speed-buttons/${id}`)
+  }
+
+  async createSpeedButton(data: SpeedButtonCreate): Promise<SpeedButton> {
+    return this.request('/speed-buttons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateSpeedButton(id: number, data: SpeedButtonUpdate): Promise<SpeedButton> {
+    return this.request(`/speed-buttons/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteSpeedButton(id: number): Promise<void> {
+    await this.request(`/speed-buttons/${id}`, { method: 'DELETE' })
+  }
+
+  async reorderSpeedButtons(buttonIds: number[]): Promise<{ speed_buttons: SpeedButton[]; total: number }> {
+    return this.request('/speed-buttons/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ button_ids: buttonIds }),
+    })
   }
 }
 

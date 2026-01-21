@@ -6,7 +6,7 @@ from app.models import Story, Episode, StoryCharacter, MemoryState
 from app.models.story import StoryStatus
 from app.services.llm_service import llm_service, ProviderManager
 from app.services.memory_service import memory_service
-from app.services.prompt_service import prompt_service
+from app.services.prompt_service import prompt_service, WORD_PRESETS
 from app.config import get_settings
 
 settings = get_settings()
@@ -50,21 +50,43 @@ class StoryService:
         yield {"event": "start", "data": str(new_episode.id), "episode_id": new_episode.id}
 
         try:
-            # Build context
-            context = await memory_service.build_context(db, story_id)
+            # Get story generation settings
+            story_settings = self._get_story_settings(story)
 
-            # Build prompts
-            system_prompt = prompt_service.build_system_prompt(context)
+            # Determine target words: explicit param > story preset > config default
+            word_preset = story_settings["target_word_preset"]
+            effective_target_words = (
+                target_words
+                or WORD_PRESETS.get(word_preset, 1250)
+                or settings.episode_target_words
+            )
+
+            # Build context with adaptive sizing based on target words
+            context = await memory_service.build_context(
+                db, story_id, target_words=effective_target_words
+            )
+
+            # Build prompts with style settings and structural constraints
+            system_prompt = prompt_service.build_system_prompt(
+                context,
+                writing_style=story_settings["writing_style"],
+                mood=story_settings["mood"],
+                pacing=story_settings["pacing"],
+            )
             user_prompt = prompt_service.build_generation_prompt(
                 context,
                 guidance=guidance,
-                target_words=target_words or settings.episode_target_words,
+                target_words=effective_target_words,
+                word_preset=word_preset,
             )
 
             # Get the appropriate provider
             provider = ProviderManager.get_provider_for_generation(db, use_alternate)
 
-            # Stream generation
+            # Calculate max_tokens based on target word count
+            max_tokens = self._calculate_max_tokens(effective_target_words)
+
+            # Stream generation with story temperature and token limit
             full_content = ""
             current_sentence = ""
             sentence_endings = re.compile(r'[.!?]["\')\]]*\s*')
@@ -73,6 +95,8 @@ class StoryService:
                 prompt=user_prompt,
                 system_prompt=system_prompt,
                 provider=provider,
+                temperature=story_settings["temperature"],
+                max_tokens=max_tokens,
             ):
                 full_content += token
                 current_sentence += token
@@ -105,8 +129,8 @@ class StoryService:
             new_episode.word_count = len(new_episode.content.split())
 
             # Generate title and summary
-            title = await self._generate_title(full_content)
-            summary = await memory_service.generate_summary(full_content)
+            title = await self._generate_title(full_content, db, use_alternate)
+            summary = await memory_service.generate_summary(full_content, provider)
 
             new_episode.title = title
             new_episode.summary = summary
@@ -132,11 +156,34 @@ class StoryService:
             db.delete(new_episode)
             db.commit()
 
-    async def _generate_title(self, content: str) -> str:
-        """Generate a title for the episode."""
+    async def _generate_title(self, content: str, db: Session, use_alternate: bool = False) -> str:
+        """Generate a title for the episode with fallback to alternate provider."""
         prompt = prompt_service.build_title_prompt(content)
-        raw = await llm_service.generate(prompt=prompt, temperature=0.7, max_tokens=50)
-        return self._clean_title(raw)
+
+        # Try primary provider
+        provider = ProviderManager.get_provider_for_generation(db, use_alternate)
+        raw = await llm_service.generate(
+            prompt=prompt,
+            temperature=0.7,
+            max_tokens=100,
+            provider=provider,
+        )
+
+        title = self._clean_title(raw)
+
+        # If empty, try the other provider as fallback
+        if title == "Untitled":
+            fallback_provider = ProviderManager.get_provider_for_generation(db, not use_alternate)
+            if fallback_provider and fallback_provider != provider:
+                raw = await llm_service.generate(
+                    prompt=prompt,
+                    temperature=0.7,
+                    max_tokens=100,
+                    provider=fallback_provider,
+                )
+                title = self._clean_title(raw)
+
+        return title
 
     def _clean_title(self, raw: str) -> str:
         """Extract clean title from LLM response, handling preamble and multiple options."""
@@ -171,14 +218,63 @@ class StoryService:
     ]
 
     def _clean_content(self, content: str) -> str:
-        """Remove common LLM meta-commentary from generated content."""
+        """Remove common LLM meta-commentary and ensure complete ending."""
         cleaned = content
 
         for pattern, flags in self.CLEANUP_PATTERNS:
             cleaned = re.sub(pattern, '', cleaned, flags=flags)
 
         # Strip leading/trailing whitespace
-        return cleaned.strip()
+        cleaned = cleaned.strip()
+
+        # Ensure content ends at a complete sentence/paragraph
+        return self._ensure_complete_ending(cleaned)
+
+    def _ensure_complete_ending(self, content: str) -> str:
+        """Trim content to last complete sentence/paragraph if truncated.
+
+        Two-tier approach:
+        1. If last paragraph is suspiciously short, trim to previous paragraph
+        2. Otherwise, trim to last complete sentence
+        """
+        if not content:
+            return content
+
+        content = content.rstrip()
+
+        # Check if content already ends with sentence-ending punctuation
+        if re.search(r'[.!?]["\']?$', content):
+            # Content ends properly, but check for truncated final paragraph
+            return self._check_paragraph_completeness(content)
+
+        # Content doesn't end with punctuation - find last complete sentence
+        matches = list(re.finditer(r'[.!?]["\']?(?=\s|$)', content))
+        if matches:
+            truncated = content[:matches[-1].end()].rstrip()
+            # Only use truncated version if we're keeping at least 80% of content
+            if len(truncated) >= len(content) * 0.8:
+                return self._check_paragraph_completeness(truncated)
+
+        return content
+
+    def _check_paragraph_completeness(self, content: str) -> str:
+        """Check if final paragraph seems complete; trim to previous if not."""
+        paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+
+        if len(paragraphs) < 2:
+            return content
+
+        # Calculate average paragraph length (excluding last)
+        other_lengths = [len(p) for p in paragraphs[:-1]]
+        avg_length = sum(other_lengths) / len(other_lengths)
+
+        # If last paragraph is less than 30% of average, it's likely truncated
+        last_para_length = len(paragraphs[-1])
+        if last_para_length < avg_length * 0.3:
+            # Remove the truncated paragraph
+            return '\n\n'.join(paragraphs[:-1]).rstrip()
+
+        return content
 
     def fork_story(
         self,
@@ -192,13 +288,19 @@ class StoryService:
         if not original_story:
             raise ValueError("Original story not found")
 
-        # Create the forked story
+        # Create the forked story (copy generation settings from original)
         forked_story = Story(
             title=new_title,
             scenario_id=original_story.scenario_id,
             status=StoryStatus.IN_PROGRESS,
             parent_story_id=story_id,
             fork_from_episode=from_episode,
+            # Copy generation settings
+            target_word_preset=original_story.target_word_preset,
+            temperature=original_story.temperature,
+            writing_style=original_story.writing_style,
+            mood=original_story.mood,
+            pacing=original_story.pacing,
         )
         db.add(forked_story)
         db.commit()
@@ -298,6 +400,23 @@ class StoryService:
             "fork_from_episode": story.fork_from_episode,
             "children": children,
         }
+
+    def _get_story_settings(self, story: Story) -> dict:
+        """Extract generation settings from a story with defaults."""
+        return {
+            "target_word_preset": story.target_word_preset or "medium",
+            "temperature": story.temperature if story.temperature is not None else 0.7,
+            "writing_style": story.writing_style or "balanced",
+            "mood": story.mood or "moderate",
+            "pacing": story.pacing or "moderate",
+        }
+
+    def _calculate_max_tokens(self, target_words: int) -> int:
+        """Calculate max_tokens based on target word count.
+
+        ~1.3 tokens per word, 50% buffer to allow natural completion.
+        """
+        return int(target_words * 1.3 * 1.5)
 
 
 # Singleton instance

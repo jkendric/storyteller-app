@@ -33,13 +33,14 @@ export default function EpisodeReader({
     prevEpisodesLengthRef.current = episodes.length
   }, [episodes.length])
 
-  // Stop audio and navigate to latest position when generation starts
+  // Handle generation start and error recovery
   useEffect(() => {
     if (isGenerating && !wasGeneratingRef.current) {
       // Generation just started - remember if audio was playing, then stop
       const wasPlaying = isPlaying
       stop()
-      setCurrentIndex(episodes.length - 1)
+      // Set index to the new episode slot (one past current last)
+      setCurrentIndex(episodes.length)
 
       // If audio was playing, set flag to auto-play when first sentence arrives
       // We can't call play() immediately because the queue is empty and the
@@ -51,9 +52,16 @@ export default function EpisodeReader({
       // Reset auto-play flag - we've already handled playback for streaming
       // This prevents the auto-play effect from re-queuing when generation completes
       shouldAutoPlayRef.current = false
+    } else if (!isGenerating && wasGeneratingRef.current) {
+      // Generation just stopped - if we're on a non-existent episode slot
+      // and there's no streaming content, navigate back to the last real episode
+      // (this handles the error case where generation failed before any content arrived)
+      if (currentIndex >= episodes.length && !streamingContent && episodes.length > 0) {
+        setCurrentIndex(episodes.length - 1)
+      }
     }
     wasGeneratingRef.current = isGenerating
-  }, [isGenerating, episodes.length, stop, isPlaying])
+  }, [isGenerating, episodes.length, stop, isPlaying, currentIndex, streamingContent])
 
   // Auto-play when queue has content and auto-play flag is set
   // This effect watches the queue and starts playback when content arrives,
@@ -82,13 +90,19 @@ export default function EpisodeReader({
     prevIndexRef.current = currentIndex
   }, [currentIndex, episodes, queueContent])
 
+  // currentIndex may point past the array during generation (to the new episode slot)
   const currentEpisode = episodes[currentIndex]
 
-  // Show streaming content if we're generating and on the latest episode
-  const showStreaming = isGenerating && currentIndex === episodes.length - 1
-  const displayContent = showStreaming
-    ? streamingContent
-    : currentEpisode?.content
+  // Show streaming content when:
+  // 1. We're on a position that doesn't have an episode yet (during/after generation), OR
+  // 2. We're generating and on the latest position
+  const isOnNewEpisodeSlot = currentIndex >= episodes.length
+  const showStreaming = isOnNewEpisodeSlot || (isGenerating && currentIndex === episodes.length - 1)
+
+  // Prefer persisted episode content when available, fall back to streaming
+  const displayContent = currentEpisode?.content
+    ? currentEpisode.content
+    : streamingContent || undefined
 
   const goToPrevious = () => {
     if (currentIndex > 0) {
@@ -186,7 +200,7 @@ export default function EpisodeReader({
           {displayContent?.split('\n').map((paragraph, i) => (
             <p key={i}>{paragraph}</p>
           ))}
-          {isGenerating && showStreaming && (
+          {isGenerating && isOnNewEpisodeSlot && (
             <span className="inline-block w-2 h-5 bg-primary-500 animate-pulse ml-1" />
           )}
         </div>

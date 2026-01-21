@@ -1,20 +1,27 @@
 import { useState } from 'react'
 import { Sparkles, Square, GitBranch, Zap } from 'lucide-react'
+import SpeedButtonList from './SpeedButtonList'
+import StorySettingsPanel from './StorySettingsPanel'
+import { Story } from '../../api/client'
 
 interface GenerationControlsProps {
   isGenerating: boolean
   episodeCount: number
+  story: Story
   onGenerate: (guidance?: string, useAlternate?: boolean) => void
   onStop: () => void
   onFork: (fromEpisode: number, newTitle: string) => void
+  onStoryUpdate: (story: Story) => void
 }
 
 export default function GenerationControls({
   isGenerating,
   episodeCount,
+  story,
   onGenerate,
   onStop,
   onFork,
+  onStoryUpdate,
 }: GenerationControlsProps) {
   const [guidance, setGuidance] = useState('')
   const [useAlternate, setUseAlternate] = useState(false)
@@ -99,6 +106,21 @@ export default function GenerationControls({
           </button>
         )}
       </div>
+
+      {/* Speed buttons */}
+      <SpeedButtonList
+        isDisabled={isGenerating}
+        onQuickGenerate={(guidance, useAlternate) => {
+          onGenerate(guidance, useAlternate)
+        }}
+      />
+
+      {/* Story Settings */}
+      <StorySettingsPanel
+        story={story}
+        onSettingsUpdate={onStoryUpdate}
+        isDisabled={isGenerating}
+      />
 
       {/* Fork modal */}
       {showForkModal && (

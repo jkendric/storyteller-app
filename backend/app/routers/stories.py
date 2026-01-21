@@ -42,6 +42,12 @@ def _story_to_response(db: Session, story: Story) -> dict:
         "updated_at": story.updated_at,
         "episode_count": episode_count,
         "characters": characters,
+        # Settings
+        "target_word_preset": story.target_word_preset or "medium",
+        "temperature": story.temperature if story.temperature is not None else 0.7,
+        "writing_style": story.writing_style or "balanced",
+        "mood": story.mood or "moderate",
+        "pacing": story.pacing or "moderate",
     }
 
 
@@ -75,6 +81,11 @@ def create_story(
         title=story.title,
         scenario_id=story.scenario_id,
         status=StoryStatus.DRAFT,
+        target_word_preset=story.target_word_preset,
+        temperature=story.temperature,
+        writing_style=story.writing_style,
+        mood=story.mood,
+        pacing=story.pacing,
     )
     db.add(db_story)
     db.commit()
